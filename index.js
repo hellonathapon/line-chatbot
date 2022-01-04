@@ -2,6 +2,7 @@ const express = require("express");
 const port = process.env.PORT || 5000;
 const line = require("@line/bot-sdk");
 const middleware = require("@line/bot-sdk").middleware;
+const { NlpManager } = require("node-nlp");
 require("dotenv").config();
 
 const config = {
@@ -11,9 +12,11 @@ const config = {
 
 const app = express();
 
-// webhook server
+// initiate nlp
+const manager = new NlpManager({ languages: ["en"] });
+manager.load();
+
 app.post("/webhook", middleware(config), (req, res) => {
-  // console.log(req.body.events[0].message);
   Promise.all(req.body.events.map(handleEvent)).then((result) =>
     res.json(result)
   );
@@ -28,15 +31,17 @@ app.use(
 
 const client = new line.Client(config);
 
-function handleEvent(e) {
+async function handleEvent(e) {
   // if event is invalid type
   if (e.type !== "message" || e.message.type !== "text") {
     return Promise.resolve(null);
   }
+  // pass user text to ML process and waiting for reasonable response
+  const response = await manager.process("en", e.message.text);
   // replytoken(userToken, {text})
   return client.replyMessage(e.replyToken, {
     type: "text",
-    text: e.message.text,
+    text: response.answer,
   });
 }
 
